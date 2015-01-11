@@ -1,4 +1,4 @@
-## Severe Weather Effects on Health and Property: Recent Trends
+# Severe Weather Effects on Health and Property: Recent Trends
 
 [Jeremy Shantz](https://www.linkedin.com/profile/public-profile-settings?trk=prof-edit-edit-public_profile)
 

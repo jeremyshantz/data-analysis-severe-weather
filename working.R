@@ -18,7 +18,6 @@ if (!exists('storm')) {
 
 storm$year = year(storm$ddate)
 
-recent <- filter(storm, ddate > '2011-01-01
-                 ')
+recent <- filter(storm, ddate > '2011-01-01')
 tops <- storm  %>% group_by(EVTYPE, year) %>% summarise_each(funs(sum), FATALITIES) %>% arrange(desc(year)) %>% filter(FATALITIES > 0)
 
