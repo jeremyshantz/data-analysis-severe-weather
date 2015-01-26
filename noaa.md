@@ -1,11 +1,8 @@
-# Severe Weather Effects on Health and Property: Recent Trends
+# The Soaring Cost of Storms: Severe Weather Effects on Health and Property
 
 ## Synopsis
-describes and summarizes your analysis in at most 10 complete sentences.
 
-Storms and other severe weather events can cause both public health and economic problems for communities and municipalities. Many severe events can result in fatalities, injuries, and property damage, and preventing such outcomes to the extent possible is a key concern.
-
-This project involves exploring the . This database tracks characteristics of major storms and weather events in the United States, including when and where they occur, as well as estimates of any fatalities, injuries, and property damage.
+In this report we describe the most damaging storm event types to human health and property from 1950 to recent years. Property damage due to storm events has risen dramatically in the past fifeteen years. To demonstrate this claim we downloaded the U.S. National Oceanic and Atmospheric Administration's (NOAA) storm database for the years 1950 to 2011. We list the most damaging storm types causing human casualties (deaths and injuries). We also list the most damaging storm types causing property and crop losses. We found that tornados and floods caused the most damage respectively. We also found that since 1995, the dollar cost of storms has soared.
 
 ## Data Processing
 
@@ -13,104 +10,189 @@ We downloaded the U.S. National Oceanic and Atmospheric Administration's (NOAA) 
 
 
 ```r
-if (!exists('storm')) {
-    storm <- read.csv('./repdata_data_StormData.csv.bz2')
-}
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(lubridate))
+suppressPackageStartupMessages(library(ggplot2))
+
+storm <- read.csv('./repdata_data_StormData.csv.bz2')
 ```
 
 ### Transformations
 
-We do some transformations based on the beginning date (BGN_DATE) field so we have a proper date format to work with. We create some convenience fields for year, decade and five year period to make it easy to analyse storm data over different aggregated time horizons. The five year periods are the year 00 - 04 and 05 - 09 for each decade and named after the first year in the period.
+#### Dates
+We transform the beginning date (BGN_DATE) field so we have a proper date format to work with. We create some convenience fields for year and five year period to make it easy to analyse storm data over different aggregated time horizons. The five year periods are the years 00 - 04 and 05 - 09 for each decade and named after the first year in the period. For example, the 2005 period contains the years 2005 to 2009 inclusive.
 
 
 ```r
 # split out date from BGN_DATE's date/time factor and cast as Date
 storm$evdate <-sapply(as.character(storm$BGN_DATE), function(x){ strsplit(x, split=c(' '))[[1]][1] })
 storm$evdate <- as.Date(storm$evdate, format="%m/%d/%Y")
-# Create separate year, decade and fiveyear period variables 
-storm$year <- year(storm$evdate)
-storm$decade = paste(substr(storm$year, 0,3), '0', sep='')
+
+# Create separate year and fiveyear period variables 
+storm$year <- lubridate::year(storm$evdate)
 storm$fiveyear = paste(substr(storm$year, 0,3), ifelse(substr(storm$year, 4, 4) < 5, 0, 5), sep='')
 ```
 
-Sum fatalities and injuries as casualties to simplify analysis of the health effects of storms.
+#### Population Impact
+
+Sum fatalities and injuries as 'casualties' to simplify analysis of the health effects of storms.
 
 ```r
 storm$casualties <- storm$FATALITIES + storm$INJURIES
 ```
 
+#### Property Damage
+
+It is likely that the PROPDMG and CROPDMG fields are intended to be modified according to the values found in PROPDMGEXP and CROPDMGEXP. However, since we find no description in the official sources as to how this should work, this present analysis assumes the following: if the PROPDMGEXP and CROPDMGEXP are equal to 'm' or 'M' the damages is in millions of dollars. All other values of PROPDMGEXP and CROPDMGEXP are assumed to signify thousands of dollars (""  "-" "?" "+" "0" "1" "2" "3" "4" "5" "6" "7" "8" "B" "H" "h" "K"). (cf. [Storm Events Database](http://www.ncdc.noaa.gov/stormevents/), [National Weather Service Storm Data Documentation](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf), [National Climatic Data Center Storm Events FAQ](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2FNCDC%20Storm%20Events-FAQ%20Page.pdf) )
+
+Sum property damage and crop damage as 'damages' to simplify analysis of the health effects of storms.
+
+```r
+# Normalize the PROPDMGEXP and CROPDMGEXP fields
+storm$PROPDMGEXP <- ifelse(storm$PROPDMGEXP == 'm' | storm$PROPDMGEXP == 'M', 'm', 'k')
+storm$CROPDMGEXP <- ifelse(storm$CROPDMGEXP == 'm' | storm$CROPDMGEXP == 'M', 'm', 'k')
+
+# Calculate true values
+storm$PROPDMG <- ifelse(storm$PROPDMGEXP == 'm', storm$PROPDMG * 1000000, storm$PROPDMG * 1000)
+storm$CROPDMG <- ifelse(storm$CROPDMGEXP == 'm', storm$CROPDMG * 1000000, storm$CROPDMG * 1000)
+
+# Combined damages
+storm$damages <- storm$PROPDMG + storm$CROPDMG
+```
+
+### Shape of the data
+
 Our main focus will be on event type, dates, property damage, and casualties.
 
 ```r
-storm[sample(1:900000, 5), c(2,6:8, 23:27, 38:42)]
+storm[sample(1:900000, 5), c(2, 8, 23:27, 38:42)]
 ```
 
 ```
-##                 BGN_DATE COUNTYNAME STATE      EVTYPE FATALITIES INJURIES
-## 635545 7/21/2006 0:00:00     LEHIGH    PA FLASH FLOOD          0        0
-## 628095 8/26/2006 0:00:00     CAMDEN    NJ   TSTM WIND          0        0
-## 368677 4/24/1999 0:00:00   LE FLORE    OK        HAIL          0        0
-## 532521 5/27/2004 0:00:00      WAYNE    IN FLASH FLOOD          0        0
-## 197100 2/21/1993 0:00:00     OCONEE    GA        HAIL          0        0
-##        PROPDMG PROPDMGEXP CROPDMG     evdate year decade fiveyear
-## 635545       0                  0 2006-07-21 2006   2000     2005
-## 628095       0                  0 2006-08-26 2006   2000     2005
-## 368677       0                  0 1999-04-24 1999   1990     1995
-## 532521       0                  0 2004-05-27 2004   2000     2000
-## 197100       0                  0 1993-02-21 1993   1990     1990
-##        casualties
-## 635545          0
-## 628095          0
-## 368677          0
-## 532521          0
-## 197100          0
+##                 BGN_DATE    EVTYPE FATALITIES INJURIES PROPDMG PROPDMGEXP
+## 338956  9/7/1998 0:00:00      HAIL          0        0       0          k
+## 247165 5/13/1995 0:00:00      HAIL          0        0       0          k
+## 617198 8/25/2006 0:00:00 TSTM WIND          0        0   40000          k
+## 735465 9/28/2008 0:00:00      HAIL          0        0       0          k
+## 527933 5/31/2004 0:00:00 TSTM WIND          0        0    1000          k
+##        CROPDMG     evdate year fiveyear casualties damages
+## 338956       0 1998-09-07 1998     1995          0       0
+## 247165       0 1995-05-13 1995     1995          0       0
+## 617198       0 2006-08-25 2006     2005          0   40000
+## 735465       0 2008-09-28 2008     2005          0       0
+## 527933       0 2004-05-31 2004     2000          0    1000
 ```
+__*Table 1. Random sample from the data set*__
 
-The EVTYPE field records the type of storm event. It is far from a well-curated taxonomy. 
+#### Event type
+
+The EVTYPE field records the type of storm event. It is far from a well-curated taxonomy. We acknowledge this problem with the data, but choose not to address it in this analysis
 
 
 ```r
-grep('Wind', unique(storm$EVTYPE), value = TRUE)
+sort(grep('Wind', unique(storm$EVTYPE), value = TRUE))
 ```
 
 ```
-##  [1] "High Wind"           "Tstm Wind"           "Wind"               
-##  [4] "Wind Damage"         "Strong Wind"         "Heavy Rain and Wind"
-##  [7] "Thunderstorm Wind"   "Strong Winds"        "Gusty Wind"         
-## [10] "Gusty Winds"         "Flood/Strong Wind"
+##  [1] "Flood/Strong Wind"   "Gusty Wind"          "Gusty Winds"        
+##  [4] "Heavy Rain and Wind" "High Wind"           "Strong Wind"        
+##  [7] "Strong Winds"        "Thunderstorm Wind"   "Tstm Wind"          
+## [10] "Wind"                "Wind Damage"
 ```
+__*Table 2. Wind event types showing many overlapping codes*__
+
 
 ```r
-grep('Snow', unique(storm$EVTYPE), value = TRUE)
+sort(grep('Snow', unique(storm$EVTYPE), value = TRUE))
 ```
 
 ```
-##  [1] "Snow"                 "Snow Squalls"         "Light Snow/Flurries" 
-##  [4] "Late-season Snowfall" "Snow squalls"         "Ice/Snow"            
-##  [7] "Snow Accumulation"    "Drifting Snow"        "Record May Snow"     
-## [10] "Record Winter Snow"   "Late Season Snowfall" "Light Snow"          
-## [13] "Snow and Ice"         "Light Snowfall"       "Blowing Snow"        
-## [16] "Monthly Snowfall"     "Seasonal Snowfall"    "Lake Effect Snow"    
-## [19] "Snow and sleet"       "Mountain Snows"
+##  [1] "Blowing Snow"         "Drifting Snow"        "Ice/Snow"            
+##  [4] "Lake Effect Snow"     "Late Season Snowfall" "Late-season Snowfall"
+##  [7] "Light Snow"           "Light Snowfall"       "Light Snow/Flurries" 
+## [10] "Monthly Snowfall"     "Mountain Snows"       "Record May Snow"     
+## [13] "Record Winter Snow"   "Seasonal Snowfall"    "Snow"                
+## [16] "Snow Accumulation"    "Snow and Ice"         "Snow and sleet"      
+## [19] "Snow Squalls"         "Snow squalls"
 ```
-
-Since our objective is to provide forward guidance to municipal planners, we will focus our investigation on storms trends over the past ten years to 2011.
+__*Table 3. Snow event types showing many overlapping codes*__
 
 ## Results
 
-The events most harmful to population health are ....
-The types of events that have the greatest economic consequences are .....
+### Long term - 1950 - 2011
 
-in which your results are presented.
-Do the figure(s) have descriptive captions (i.e. there is a description near the figure of what is happening in the figure)?
-Do all the results of the analysis (i.e. figures, tables, numerical summaries) appear to be reproducible?
-* show the code for your entire analysis. 
-* Your analysis can consist of tables, figures, or other summaries. 
-* You may use any R package you want to support your analysis.
-* Your data analysis must address the following questions:
-    *  Across the United States, which types of events (as indicated in the EVTYPE variable) are most harmful with respect to population health?
-    * Across the United States, which types of events have the greatest economic consequences?
-* Write your report as if it were to be read by a government or municipal manager who is responsible for preparing for severe weather events and will need to prioritize resources
-* no need to make any specific recommendations in your report.
-* The analysis document must have at least one figure containing a plot.
-* Your analyis must have no more than three figures. Figures may have multiple plots in them (i.e. panel plots), but there cannot be more than three figures total.
+To determine the storm events most harmful to population health, we can tapply over EVTYPE summing casualties, sort, and display the top ten:
+
+
+```r
+all.casualties.nums <- with(storm, tapply(casualties, EVTYPE, sum, na.rm = TRUE))
+all.casualties <- data.frame(casualties = all.casualties.nums, event <- names(all.casualties.nums))
+all.casualties$casualties <- as.numeric(all.casualties$casualties)
+all.casualties <- dplyr::arrange(all.casualties, desc(casualties))
+names(all.casualties) <- c('casualties', 'event')
+head(all.casualties, 10)
+```
+
+```
+##    casualties             event
+## 1       96979           TORNADO
+## 2        8428    EXCESSIVE HEAT
+## 3        7461         TSTM WIND
+## 4        7259             FLOOD
+## 5        6046         LIGHTNING
+## 6        3037              HEAT
+## 7        2755       FLASH FLOOD
+## 8        2064         ICE STORM
+## 9        1621 THUNDERSTORM WIND
+## 10       1527      WINTER STORM
+```
+__*Table 4. Storm events most harmful to population health, 1950 - 2011*__
+
+Tornados have been far and away the leading cause of death and injury from storm events since 1950.
+
+The same technique - using damages instead of casualties - yields the storm events that have had the greatest economic consequences (property and crops).
+
+
+```r
+all.damage.nums <- with(storm[storm$fiveyear == '2005',], tapply(damages, EVTYPE, sum, na.rm = TRUE))
+all.damage <- data.frame(property.damage = all.damage.nums, event <- names(all.damage.nums))
+all.damage$property.damage <- as.numeric(all.damage$property.damage)
+all.damage <- dplyr::arrange(all.damage, desc(property.damage))
+names(all.damage) <- c('property.damage', 'event')
+head(all.damage, 10)
+```
+
+```
+##    property.damage             event
+## 1       7708892340             FLOOD
+## 2       5778530360       FLASH FLOOD
+## 3       4979654990           TORNADO
+## 4       4898136330              HAIL
+## 5       3275935000           DROUGHT
+## 6       3032049030 THUNDERSTORM WIND
+## 7       1769128200          WILDFIRE
+## 8       1627111000         HURRICANE
+## 9       1539367260 HURRICANE/TYPHOON
+## 10      1382411720         HIGH WIND
+```
+__*Table 5. Storm events with the greatest economic consequences, 1950 - 2011*__
+
+### Rising cost of storms
+
+There has been a dramatic rise in the property damage caused by storms.
+
+
+```r
+fiveyear.damage.nums <- tapply(storm$damages, storm$fiveyear, sum)
+fiveyear.damage <- data.frame(damages = fiveyear.damage.nums[1:12] / 1000000, fiveyear = names(fiveyear.damage.nums[1:12]))
+fiveyear.plot <- ggplot2::ggplot(data = fiveyear.damage, ggplot2::aes(x=fiveyear, y=damages, width=0.3)) +
+    ggplot2::geom_bar(stat='identity') +
+    ggplot2::ggtitle("Storm Damage By Five Year Period - 1950-2009") +
+    ggplot2::xlab('Data source: U.S. National Oceanic and Atmospheric Administration (NOAA)') +
+    ggplot2::ylab('Property and crop damage (millions of dollars') 
+print(fiveyear.plot)
+```
+
+![plot of chunk unnamed-chunk-10](figure/unnamed-chunk-10-1.png) 
+
+__*Fig 1. Storm Damage By Five Year Period - 1950-2009*__

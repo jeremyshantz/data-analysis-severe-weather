@@ -3,7 +3,7 @@
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
 
-<title>Severe Weather Effects on Health and Property: Recent Trends</title>
+<title>The Soaring Cost of Storms: Severe Weather Effects on Health and Property</title>
 
 <script type="text/javascript">
 window.onload = function() {
@@ -160,117 +160,188 @@ h2, h3 {
 </head>
 
 <body>
-<h1>Severe Weather Effects on Health and Property: Recent Trends</h1>
+<h1>The Soaring Cost of Storms: Severe Weather Effects on Health and Property</h1>
 
 <h2>Synopsis</h2>
 
-<p>describes and summarizes your analysis in at most 10 complete sentences.</p>
-
-<p>Storms and other severe weather events can cause both public health and economic problems for communities and municipalities. Many severe events can result in fatalities, injuries, and property damage, and preventing such outcomes to the extent possible is a key concern.</p>
-
-<p>This project involves exploring the . This database tracks characteristics of major storms and weather events in the United States, including when and where they occur, as well as estimates of any fatalities, injuries, and property damage.</p>
+<p>In this report we describe the most damaging storm event types to human health and property from 1950 to recent years. Property damage due to storm events has risen dramatically in the past fifeteen years. To demonstrate this claim we downloaded the U.S. National Oceanic and Atmospheric Administration&#39;s (NOAA) storm database for the years 1950 to 2011. We list the most damaging storm types causing human casualties (deaths and injuries). We also list the most damaging storm types causing property and crop losses. We found that tornados and floods caused the most damage respectively. We also found that since 1995, the dollar cost of storms has soared.</p>
 
 <h2>Data Processing</h2>
 
 <p>We downloaded the U.S. National Oceanic and Atmospheric Administration&#39;s (NOAA) storm database from <a href="https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2">here</a> on 2015-01-10. It contains storm data from 1950 to 2011. We load the raw data from the .csv.bz2 file this way:</p>
 
-<pre><code class="r">if (!exists(&#39;storm&#39;)) {
-    storm &lt;- read.csv(&#39;./repdata_data_StormData.csv.bz2&#39;)
-}
+<pre><code class="r">suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(lubridate))
+suppressPackageStartupMessages(library(ggplot2))
+
+storm &lt;- read.csv(&#39;./repdata_data_StormData.csv.bz2&#39;)
 </code></pre>
 
 <h3>Transformations</h3>
 
-<p>We do some transformations based on the beginning date (BGN_DATE) field so we have a proper date format to work with. We create some convenience fields for year, decade and five year period to make it easy to analyse storm data over different aggregated time horizons. The five year periods are the year 00 - 04 and 05 - 09 for each decade and named after the first year in the period.</p>
+<h4>Dates</h4>
+
+<p>We transform the beginning date (BGN_DATE) field so we have a proper date format to work with. We create some convenience fields for year and five year period to make it easy to analyse storm data over different aggregated time horizons. The five year periods are the years 00 - 04 and 05 - 09 for each decade and named after the first year in the period. For example, the 2005 period contains the years 2005 to 2009 inclusive.</p>
 
 <pre><code class="r"># split out date from BGN_DATE&#39;s date/time factor and cast as Date
 storm$evdate &lt;-sapply(as.character(storm$BGN_DATE), function(x){ strsplit(x, split=c(&#39; &#39;))[[1]][1] })
 storm$evdate &lt;- as.Date(storm$evdate, format=&quot;%m/%d/%Y&quot;)
-# Create separate year, decade and fiveyear period variables 
-storm$year &lt;- year(storm$evdate)
-storm$decade = paste(substr(storm$year, 0,3), &#39;0&#39;, sep=&#39;&#39;)
+
+# Create separate year and fiveyear period variables 
+storm$year &lt;- lubridate::year(storm$evdate)
 storm$fiveyear = paste(substr(storm$year, 0,3), ifelse(substr(storm$year, 4, 4) &lt; 5, 0, 5), sep=&#39;&#39;)
 </code></pre>
 
-<p>Sum fatalities and injuries as casualties to simplify analysis of the health effects of storms.</p>
+<h4>Population Impact</h4>
+
+<p>Sum fatalities and injuries as &#39;casualties&#39; to simplify analysis of the health effects of storms.</p>
 
 <pre><code class="r">storm$casualties &lt;- storm$FATALITIES + storm$INJURIES
 </code></pre>
 
+<h4>Property Damage</h4>
+
+<p>It is likely that the PROPDMG and CROPDMG fields are intended to be modified according to the values found in PROPDMGEXP and CROPDMGEXP. However, since we find no description in the official sources as to how this should work, this present analysis assumes the following: if the PROPDMGEXP and CROPDMGEXP are equal to &#39;m&#39; or &#39;M&#39; the damages is in millions of dollars. All other values of PROPDMGEXP and CROPDMGEXP are assumed to signify thousands of dollars (&ldquo;&rdquo;  &ldquo;-&rdquo; &ldquo;?&rdquo; &ldquo;+&rdquo; &ldquo;0&rdquo; &ldquo;1&rdquo; &ldquo;2&rdquo; &ldquo;3&rdquo; &ldquo;4&rdquo; &ldquo;5&rdquo; &ldquo;6&rdquo; &ldquo;7&rdquo; &ldquo;8&rdquo; &ldquo;B&rdquo; &ldquo;H&rdquo; &ldquo;h&rdquo; &ldquo;K&rdquo;). (cf. <a href="http://www.ncdc.noaa.gov/stormevents/">Storm Events Database</a>, <a href="https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf">National Weather Service Storm Data Documentation</a>, <a href="https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2FNCDC%20Storm%20Events-FAQ%20Page.pdf">National Climatic Data Center Storm Events FAQ</a> )</p>
+
+<p>Sum property damage and crop damage as &#39;damages&#39; to simplify analysis of the health effects of storms.</p>
+
+<pre><code class="r"># Normalize the PROPDMGEXP and CROPDMGEXP fields
+storm$PROPDMGEXP &lt;- ifelse(storm$PROPDMGEXP == &#39;m&#39; | storm$PROPDMGEXP == &#39;M&#39;, &#39;m&#39;, &#39;k&#39;)
+storm$CROPDMGEXP &lt;- ifelse(storm$CROPDMGEXP == &#39;m&#39; | storm$CROPDMGEXP == &#39;M&#39;, &#39;m&#39;, &#39;k&#39;)
+
+# Calculate true values
+storm$PROPDMG &lt;- ifelse(storm$PROPDMGEXP == &#39;m&#39;, storm$PROPDMG * 1000000, storm$PROPDMG * 1000)
+storm$CROPDMG &lt;- ifelse(storm$CROPDMGEXP == &#39;m&#39;, storm$CROPDMG * 1000000, storm$CROPDMG * 1000)
+
+# Combined damages
+storm$damages &lt;- storm$PROPDMG + storm$CROPDMG
+</code></pre>
+
+<h3>Shape of the data</h3>
+
 <p>Our main focus will be on event type, dates, property damage, and casualties.</p>
 
-<pre><code class="r">storm[sample(1:900000, 5), c(2,6:8, 23:27, 38:42)]
+<pre><code class="r">storm[sample(1:900000, 5), c(2, 8, 23:27, 38:42)]
 </code></pre>
 
-<pre><code>##                 BGN_DATE COUNTYNAME STATE      EVTYPE FATALITIES INJURIES
-## 635545 7/21/2006 0:00:00     LEHIGH    PA FLASH FLOOD          0        0
-## 628095 8/26/2006 0:00:00     CAMDEN    NJ   TSTM WIND          0        0
-## 368677 4/24/1999 0:00:00   LE FLORE    OK        HAIL          0        0
-## 532521 5/27/2004 0:00:00      WAYNE    IN FLASH FLOOD          0        0
-## 197100 2/21/1993 0:00:00     OCONEE    GA        HAIL          0        0
-##        PROPDMG PROPDMGEXP CROPDMG     evdate year decade fiveyear
-## 635545       0                  0 2006-07-21 2006   2000     2005
-## 628095       0                  0 2006-08-26 2006   2000     2005
-## 368677       0                  0 1999-04-24 1999   1990     1995
-## 532521       0                  0 2004-05-27 2004   2000     2000
-## 197100       0                  0 1993-02-21 1993   1990     1990
-##        casualties
-## 635545          0
-## 628095          0
-## 368677          0
-## 532521          0
-## 197100          0
+<pre><code>##                 BGN_DATE    EVTYPE FATALITIES INJURIES PROPDMG PROPDMGEXP
+## 338956  9/7/1998 0:00:00      HAIL          0        0       0          k
+## 247165 5/13/1995 0:00:00      HAIL          0        0       0          k
+## 617198 8/25/2006 0:00:00 TSTM WIND          0        0   40000          k
+## 735465 9/28/2008 0:00:00      HAIL          0        0       0          k
+## 527933 5/31/2004 0:00:00 TSTM WIND          0        0    1000          k
+##        CROPDMG     evdate year fiveyear casualties damages
+## 338956       0 1998-09-07 1998     1995          0       0
+## 247165       0 1995-05-13 1995     1995          0       0
+## 617198       0 2006-08-25 2006     2005          0   40000
+## 735465       0 2008-09-28 2008     2005          0       0
+## 527933       0 2004-05-31 2004     2000          0    1000
 </code></pre>
 
-<p>The EVTYPE field records the type of storm event. It is far from a well-curated taxonomy. </p>
+<p><strong><em>Table 1. Random sample from the data set</em></strong></p>
 
-<pre><code class="r">grep(&#39;Wind&#39;, unique(storm$EVTYPE), value = TRUE)
+<h4>Event type</h4>
+
+<p>The EVTYPE field records the type of storm event. It is far from a well-curated taxonomy. We acknowledge this problem with the data, but choose not to address it in this analysis</p>
+
+<pre><code class="r">sort(grep(&#39;Wind&#39;, unique(storm$EVTYPE), value = TRUE))
 </code></pre>
 
-<pre><code>##  [1] &quot;High Wind&quot;           &quot;Tstm Wind&quot;           &quot;Wind&quot;               
-##  [4] &quot;Wind Damage&quot;         &quot;Strong Wind&quot;         &quot;Heavy Rain and Wind&quot;
-##  [7] &quot;Thunderstorm Wind&quot;   &quot;Strong Winds&quot;        &quot;Gusty Wind&quot;         
-## [10] &quot;Gusty Winds&quot;         &quot;Flood/Strong Wind&quot;
+<pre><code>##  [1] &quot;Flood/Strong Wind&quot;   &quot;Gusty Wind&quot;          &quot;Gusty Winds&quot;        
+##  [4] &quot;Heavy Rain and Wind&quot; &quot;High Wind&quot;           &quot;Strong Wind&quot;        
+##  [7] &quot;Strong Winds&quot;        &quot;Thunderstorm Wind&quot;   &quot;Tstm Wind&quot;          
+## [10] &quot;Wind&quot;                &quot;Wind Damage&quot;
 </code></pre>
 
-<pre><code class="r">grep(&#39;Snow&#39;, unique(storm$EVTYPE), value = TRUE)
+<p><strong><em>Table 2. Wind event types showing many overlapping codes</em></strong></p>
+
+<pre><code class="r">sort(grep(&#39;Snow&#39;, unique(storm$EVTYPE), value = TRUE))
 </code></pre>
 
-<pre><code>##  [1] &quot;Snow&quot;                 &quot;Snow Squalls&quot;         &quot;Light Snow/Flurries&quot; 
-##  [4] &quot;Late-season Snowfall&quot; &quot;Snow squalls&quot;         &quot;Ice/Snow&quot;            
-##  [7] &quot;Snow Accumulation&quot;    &quot;Drifting Snow&quot;        &quot;Record May Snow&quot;     
-## [10] &quot;Record Winter Snow&quot;   &quot;Late Season Snowfall&quot; &quot;Light Snow&quot;          
-## [13] &quot;Snow and Ice&quot;         &quot;Light Snowfall&quot;       &quot;Blowing Snow&quot;        
-## [16] &quot;Monthly Snowfall&quot;     &quot;Seasonal Snowfall&quot;    &quot;Lake Effect Snow&quot;    
-## [19] &quot;Snow and sleet&quot;       &quot;Mountain Snows&quot;
+<pre><code>##  [1] &quot;Blowing Snow&quot;         &quot;Drifting Snow&quot;        &quot;Ice/Snow&quot;            
+##  [4] &quot;Lake Effect Snow&quot;     &quot;Late Season Snowfall&quot; &quot;Late-season Snowfall&quot;
+##  [7] &quot;Light Snow&quot;           &quot;Light Snowfall&quot;       &quot;Light Snow/Flurries&quot; 
+## [10] &quot;Monthly Snowfall&quot;     &quot;Mountain Snows&quot;       &quot;Record May Snow&quot;     
+## [13] &quot;Record Winter Snow&quot;   &quot;Seasonal Snowfall&quot;    &quot;Snow&quot;                
+## [16] &quot;Snow Accumulation&quot;    &quot;Snow and Ice&quot;         &quot;Snow and sleet&quot;      
+## [19] &quot;Snow Squalls&quot;         &quot;Snow squalls&quot;
 </code></pre>
 
-<p>Since our objective is to provide forward guidance to municipal planners, we will focus our investigation on storms trends over the past ten years to 2011.</p>
+<p><strong><em>Table 3. Snow event types showing many overlapping codes</em></strong></p>
 
 <h2>Results</h2>
 
-<p>The events most harmful to population health are &hellip;.
-The types of events that have the greatest economic consequences are &hellip;..</p>
+<h3>Long term - 1950 - 2011</h3>
 
-<p>in which your results are presented.
-Do the figure(s) have descriptive captions (i.e. there is a description near the figure of what is happening in the figure)?
-Do all the results of the analysis (i.e. figures, tables, numerical summaries) appear to be reproducible?</p>
+<p>To determine the storm events most harmful to population health, we can tapply over EVTYPE summing casualties, sort, and display the top ten:</p>
 
-<ul>
-<li>show the code for your entire analysis. </li>
-<li>Your analysis can consist of tables, figures, or other summaries. </li>
-<li>You may use any R package you want to support your analysis.</li>
-<li>Your data analysis must address the following questions:
+<pre><code class="r">all.casualties.nums &lt;- with(storm, tapply(casualties, EVTYPE, sum, na.rm = TRUE))
+all.casualties &lt;- data.frame(casualties = all.casualties.nums, event &lt;- names(all.casualties.nums))
+all.casualties$casualties &lt;- as.numeric(all.casualties$casualties)
+all.casualties &lt;- dplyr::arrange(all.casualties, desc(casualties))
+names(all.casualties) &lt;- c(&#39;casualties&#39;, &#39;event&#39;)
+head(all.casualties, 10)
+</code></pre>
 
-<ul>
-<li> Across the United States, which types of events (as indicated in the EVTYPE variable) are most harmful with respect to population health?</li>
-<li>Across the United States, which types of events have the greatest economic consequences?</li>
-</ul></li>
-<li>Write your report as if it were to be read by a government or municipal manager who is responsible for preparing for severe weather events and will need to prioritize resources</li>
-<li>no need to make any specific recommendations in your report.</li>
-<li>The analysis document must have at least one figure containing a plot.</li>
-<li>Your analyis must have no more than three figures. Figures may have multiple plots in them (i.e. panel plots), but there cannot be more than three figures total.</li>
-</ul>
+<pre><code>##    casualties             event
+## 1       96979           TORNADO
+## 2        8428    EXCESSIVE HEAT
+## 3        7461         TSTM WIND
+## 4        7259             FLOOD
+## 5        6046         LIGHTNING
+## 6        3037              HEAT
+## 7        2755       FLASH FLOOD
+## 8        2064         ICE STORM
+## 9        1621 THUNDERSTORM WIND
+## 10       1527      WINTER STORM
+</code></pre>
+
+<p><strong><em>Table 4. Storm events most harmful to population health, 1950 - 2011</em></strong></p>
+
+<p>Tornados have been far and away the leading cause of death and injury from storm events since 1950.</p>
+
+<p>The same technique - using damages instead of casualties - yields the storm events that have had the greatest economic consequences (property and crops).</p>
+
+<pre><code class="r">all.damage.nums &lt;- with(storm[storm$fiveyear == &#39;2005&#39;,], tapply(damages, EVTYPE, sum, na.rm = TRUE))
+all.damage &lt;- data.frame(property.damage = all.damage.nums, event &lt;- names(all.damage.nums))
+all.damage$property.damage &lt;- as.numeric(all.damage$property.damage)
+all.damage &lt;- dplyr::arrange(all.damage, desc(property.damage))
+names(all.damage) &lt;- c(&#39;property.damage&#39;, &#39;event&#39;)
+head(all.damage, 10)
+</code></pre>
+
+<pre><code>##    property.damage             event
+## 1       7708892340             FLOOD
+## 2       5778530360       FLASH FLOOD
+## 3       4979654990           TORNADO
+## 4       4898136330              HAIL
+## 5       3275935000           DROUGHT
+## 6       3032049030 THUNDERSTORM WIND
+## 7       1769128200          WILDFIRE
+## 8       1627111000         HURRICANE
+## 9       1539367260 HURRICANE/TYPHOON
+## 10      1382411720         HIGH WIND
+</code></pre>
+
+<p><strong><em>Table 5. Storm events with the greatest economic consequences, 1950 - 2011</em></strong></p>
+
+<h3>Rising cost of storms</h3>
+
+<p>There has been a dramatic rise in the property damage caused by storms.</p>
+
+<pre><code class="r">fiveyear.damage.nums &lt;- tapply(storm$damages, storm$fiveyear, sum)
+fiveyear.damage &lt;- data.frame(damages = fiveyear.damage.nums[1:12] / 1000000, fiveyear = names(fiveyear.damage.nums[1:12]))
+fiveyear.plot &lt;- ggplot2::ggplot(data = fiveyear.damage, ggplot2::aes(x=fiveyear, y=damages, width=0.3)) +
+    ggplot2::geom_bar(stat=&#39;identity&#39;) +
+    ggplot2::ggtitle(&quot;Storm Damage By Five Year Period - 1950-2009&quot;) +
+    ggplot2::xlab(&#39;Data source: U.S. National Oceanic and Atmospheric Administration (NOAA)&#39;) +
+    ggplot2::ylab(&#39;Property and crop damage (millions of dollars&#39;) 
+print(fiveyear.plot)
+</code></pre>
+
+<p><img src="data:image/png;base64,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" alt="plot of chunk unnamed-chunk-10"/> </p>
+
+<p><strong><em>Fig 1. Storm Damage By Five Year Period - 1950-2009</em></strong></p>
 
 </body>
 

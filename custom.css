@@ -1,0 +1,93 @@
+
+body, td {
+    background-color: white;
+    font-family: sans-serif;
+    font-size: 12px;
+    margin: 8px;
+}
+tt, code, pre {
+    font-family: "DejaVu Sans Mono","Droid Sans Mono","Lucida Console",Consolas,Monaco,monospace;
+}
+h1 {
+    font-size: 2.2em;
+}
+h2 {
+    font-size: 1.8em;
+}
+h3 {
+    font-size: 1.4em;
+}
+h4 {
+    font-size: 1em;
+}
+h5 {
+    font-size: 0.9em;
+}
+h6 {
+    font-size: 0.8em;
+}
+a:visited {
+    color: rgb(50%, 0%, 50%);
+}
+pre {
+    border: 1px solid #ccc;
+    margin-top: 0;
+    max-width: 95%;
+    white-space: pre-wrap;
+}
+pre code {
+    display: block;
+    padding: 0.5em;
+}
+code.r, code.cpp {
+    background-color: #f8f8f8;
+}
+table, td, th {
+    border: medium none;
+}
+blockquote {
+    border-left: 0.5em solid #eee;
+    color: #666666;
+    margin: 0;
+    padding-left: 1em;
+}
+hr {
+    border-bottom: medium none;
+    border-top: thin dotted #999999;
+    height: 0;
+}
+@media print {
+* {
+    background: none repeat scroll 0 0 transparent !important;
+    color: black !important;
+    filter: none !important;
+}
+body {
+    font-size: 12pt;
+    max-width: 100%;
+}
+a, a:visited {
+    text-decoration: underline;
+}
+hr {
+    page-break-before: always;
+    visibility: hidden;
+}
+pre, blockquote {
+    padding-right: 1em;
+    page-break-inside: avoid;
+}
+tr, img {
+    page-break-inside: avoid;
+}
+img {
+    max-width: 100% !important;
+}
+p, h2, h3 {
+    orphans: 3;
+    widows: 3;
+}
+h2, h3 {
+    page-break-after: avoid;
+}
+}
